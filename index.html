@@ -107,6 +107,20 @@
     }
     .btn.block { width: 100%; display: block; text-align: center; }
 
+    .connect-toast {
+      position: fixed; top: calc(var(--nav-h) + 10px); right: 16px; left: 16px;
+      max-width: 420px; margin-left: auto; z-index: 60;
+      padding: 12px 14px; font-size: 0.78rem; line-height: 1.5;
+      background: var(--panel); border: 1px solid var(--line);
+      box-shadow: 0 8px 28px rgba(0,0,0,.45); display: none;
+      overflow-wrap: anywhere;
+    }
+    .connect-toast.show { display: block; }
+    .connect-toast.ok { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }
+    .connect-toast.bad { border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); color: #ffb4b4; }
+    .connect-toast a { color: var(--accent2); }
+    .connect-toast .close { float: right; cursor: pointer; color: var(--muted); margin-left: 8px; background: none; border: 0; font: inherit; line-height: 1; }
+
     /* —— layout shell —— */
     .shell {
       max-width: 1120px;
@@ -394,6 +408,11 @@
     </div>
   </header>
 
+  <div class="connect-toast" id="connectToast" role="status" aria-live="polite">
+    <button class="close" id="toastClose" type="button" title="关闭" aria-label="关闭">×</button>
+    <span id="toastMsg"></span>
+  </div>
+
   <main class="shell" id="top">
     <!-- HERO -->
     <section class="hero" aria-label="Hero">
@@ -529,7 +548,7 @@
       <h2 class="display sec-head">FAQ</h2>
       <details open>
         <summary>怎么铸造？</summary>
-        <div class="ans">点右上角 CONNECT WALLET，切到 BSC。在 MINT 区选份数（1–10），先 APPROVE USDT，再点 MINT。Agent ID / 推荐人可填 0。</div>
+        <div class="ans">需在带钱包的浏览器里打开（电脑安装 MetaMask 插件；手机用 MetaMask / 币安 Web3 / TokenPocket 内置浏览器）。点右上角 CONNECT WALLET 切到 BSC，选份数（1–10）后先 APPROVE USDT 再点 MINT。Agent ID / 推荐人可填 0。普通 Safari / 微信 / Chrome 没有插件时，点连接会在按钮下方提示安装或跳转，不会没有反应。</div>
       </details>
       <details>
         <summary>钱去哪了？什么时候开盘？</summary>
@@ -585,9 +604,22 @@
 
     const $ = (id) => document.getElementById(id);
     const statusEl = $("status");
+    function renderToast(content, cls, asHtml) {
+      const toast = $("connectToast");
+      const toastMsg = $("toastMsg");
+      if (!content) {
+        toast.className = "connect-toast";
+        toastMsg.textContent = "";
+        return;
+      }
+      if (asHtml) toastMsg.innerHTML = content;
+      else toastMsg.textContent = content;
+      toast.className = "connect-toast show " + (cls || "");
+    }
     function setStatus(msg, cls) {
       statusEl.className = "status " + (cls || "");
       statusEl.textContent = msg || "";
+      renderToast(msg || "", cls, false);
     }
 
     $("tokA").textContent = "BscScan Token";
@@ -669,24 +701,68 @@
       window.__opened = opened;
     }
 
-    async function connect() {
-      if (!window.ethereum) {
-        setStatus("未检测到钱包。请安装 MetaMask 等注入钱包。", "bad");
-        return;
+    function getInjected() {
+      const eth = window.ethereum;
+      if (!eth) return null;
+      if (Array.isArray(eth.providers) && eth.providers.length) {
+        return eth.providers.find((p) => p.isMetaMask)
+          || eth.providers.find((p) => p.isBinance || p.isBinanceWallet)
+          || eth.providers.find((p) => p.isTokenPocket)
+          || eth.providers.find((p) => p.isOkxWallet || p.isOKExWallet || p.isOkx)
+          || eth.providers[0];
       }
-      provider = new ethers.BrowserProvider(window.ethereum);
-      await ensureBsc();
-      await provider.send("eth_requestAccounts", []);
-      signer = await provider.getSigner();
-      account = await signer.getAddress();
-      sale = new ethers.Contract(SALE, SALE_ABI, signer);
-      usdt = new ethers.Contract(USDT, ERC20_ABI, signer);
-      $("connectBtn").textContent = "CONNECTED";
-      setStatus("已连接 BSC。", "ok");
-      await refresh();
+      return eth;
     }
 
-    $("connectBtn").onclick = () => connect().catch((e) => setStatus(e.shortMessage || e.message || String(e), "bad"));
+    function missingWalletNotice() {
+      const hostPath = location.host + location.pathname + location.search;
+      const mm = "https://metamask.app.link/dapp/" + hostPath;
+      const plain = "未检测到浏览器钱包。电脑请安装 MetaMask 后刷新再点；手机请用 MetaMask、币安 Web3 或 TokenPocket 的内置浏览器打开本页，或使用 MetaMask 深链跳转。";
+      const html =
+        "未检测到浏览器钱包插件。<br/>" +
+        "电脑：安装 <a target=\"_blank\" rel=\"noopener\" href=\"https://metamask.io/download/\">MetaMask</a> 后刷新再点。<br/>" +
+        "手机：用 MetaMask / 币安 Web3 / TokenPocket <b>内置浏览器</b>打开本页，或点 " +
+        "<a href=\"" + mm.replace(/"/g, "") + "\">用 MetaMask 打开</a>。";
+      statusEl.className = "status bad";
+      statusEl.textContent = plain;
+      renderToast(html, "bad", true);
+    }
+
+    async function connect() {
+      const injected = getInjected();
+      if (!injected) {
+        missingWalletNotice();
+        return;
+      }
+      const btn = $("connectBtn");
+      btn.disabled = true;
+      btn.textContent = "CONNECTING…";
+      setStatus("正在连接钱包，请在弹出窗口中确认。");
+      let connected = false;
+      try {
+        provider = new ethers.BrowserProvider(injected);
+        await ensureBsc();
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        account = await signer.getAddress();
+        sale = new ethers.Contract(SALE, SALE_ABI, signer);
+        usdt = new ethers.Contract(USDT, ERC20_ABI, signer);
+        connected = true;
+        btn.textContent = "CONNECTED";
+        setStatus("已连接 BSC：" + account.slice(0, 6) + "…" + account.slice(-4), "ok");
+      } finally {
+        btn.disabled = false;
+        if (!connected) btn.textContent = account ? "CONNECTED" : "CONNECT WALLET";
+      }
+      if (connected) await refresh();
+    }
+
+    $("connectBtn").onclick = () => connect().catch((e) => {
+      setStatus(e.shortMessage || e.message || String(e), "bad");
+    });
+    $("toastClose").onclick = () => {
+      $("connectToast").className = "connect-toast";
+    };
 
     $("qtyMinus").onclick = () => {
       $("shares").value = String(Math.max(1, parseInt($("shares").value || "1", 10) - 1));
