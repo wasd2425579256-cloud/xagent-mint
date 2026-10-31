@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>XAGENT — MINT</title>
+  <script src="./ethers.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #141a22;
+      --panel2: #12171f;
+      --line: #243041;
+      --text: #e8eef7;
+      --muted: #93a4b8;
+      --accent: #3ddc97;
+      --accent-dim: #2bb673;
+      --accent2: #5b8cff;
+      --warn: #ffb020;
+      --danger: #ff6b6b;
+      --nav-h: 56px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      background-color: var(--bg);
+      background-image:
+        linear-gradient(rgba(36, 48, 65, 0.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(36, 48, 65, 0.35) 1px, transparent 1px),
+        radial-gradient(1000px 500px at 8% -8%, #12352a 0%, transparent 55%),
+        radial-gradient(900px 480px at 100% 0%, #1a2740 0%, transparent 50%);
+      background-size: 48px 48px, 48px 48px, auto, auto;
+      color: var(--text);
+      line-height: 1.45;
+    }
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .display {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-weight: 800;
+      font-stretch: condensed;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      line-height: 0.92;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    /* —— top nav —— */
+    .topbar {
+      position: fixed; inset: 0 0 auto 0; height: var(--nav-h); z-index: 50;
+      display: flex; align-items: center; gap: 18px;
+      padding: 0 20px;
+      background: rgba(11, 15, 20, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      color: var(--text); text-decoration: none; flex-shrink: 0;
+    }
+    .brand:hover { text-decoration: none; }
+    .brand-mark {
+      width: 28px; height: 28px;
+      background: var(--accent); color: #061018;
+      display: grid; place-items: center;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; font-weight: 800; font-size: 1rem;
+    }
+    .brand-name {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; font-weight: 800; font-stretch: condensed;
+      letter-spacing: 0.06em; font-size: 0.95rem;
+    }
+    .nav-links {
+      display: flex; align-items: center; gap: 18px;
+      margin-left: 12px; flex: 1;
+    }
+    .nav-links a {
+      color: var(--muted); font-size: 0.72rem; letter-spacing: 0.12em;
+      text-transform: uppercase; text-decoration: none;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .nav-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+    .nav-pill {
+      font-size: 0.68rem; color: var(--muted);
+      border: 1px solid var(--line); padding: 6px 10px;
+      background: var(--panel2);
+    }
+    .nav-pill.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+    .btn {
+      border: 0; cursor: pointer;
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 700; font-size: 0.78rem; letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 11px 16px;
+      background: var(--accent); color: #061018;
+      transition: filter .15s, opacity .15s;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+    .btn.ghost {
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    .btn.blue {
+      background: var(--accent2); color: #fff;
+    }
+    .btn.block { width: 100%; display: block; text-align: center; }
+
+    /* —— layout shell —— */
+    .shell {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: calc(var(--nav-h) + 36px) 24px 64px;
+    }
+
+    /* —— brackets —— */
+    .bracket {
+      position: relative;
+      background: color-mix(in srgb, var(--panel) 94%, #000);
+      border: 1px solid var(--line);
+      padding: 22px;
+    }
+    .bracket::before,
+    .bracket::after {
+      content: "";
+      position: absolute;
+      width: 14px; height: 14px;
+      border-color: var(--accent);
+      border-style: solid;
+      pointer-events: none;
+    }
+    .bracket::before {
+      top: -1px; left: -1px;
+      border-width: 2px 0 0 2px;
+    }
+    .bracket::after {
+      bottom: -1px; right: -1px;
+      border-width: 0 2px 2px 0;
+    }
+    .bracket.brackets-all::before { /* TL only via ::before; use corners for rest */
+    }
+    .bracket .c-tr, .bracket .c-bl {
+      position: absolute; width: 14px; height: 14px;
+      border-color: var(--accent); border-style: solid; pointer-events: none;
+    }
+    .bracket .c-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+    .bracket .c-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+
+    /* —— hero —— */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 40px;
+      align-items: center;
+      margin-bottom: 72px;
+    }
+    .hero-kicker {
+      font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 14px;
+    }
+    .hero h1 {
+      font-size: clamp(2.8rem, 7vw, 4.6rem);
+      margin-bottom: 18px;
+    }
+    .hero-blurb {
+      color: var(--muted); font-size: 0.82rem; max-width: 42ch;
+      margin-bottom: 28px; line-height: 1.6;
+    }
+    .supply-big {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; font-weight: 800; font-stretch: condensed;
+      font-size: clamp(2.4rem, 5vw, 3.4rem); letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .supply-big .slash { color: var(--muted); font-size: 0.55em; margin: 0 4px; }
+    .supply-meta {
+      display: flex; justify-content: space-between; gap: 12px;
+      font-size: 0.72rem; color: var(--muted); margin: 8px 0 6px;
+    }
+    .progress {
+      position: relative; height: 14px;
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          #1b2430 0 4px,
+          #141a22 4px 8px
+        );
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .progress > i {
+      display: block; height: 100%; width: 0%;
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          var(--accent) 0 5px,
+          var(--accent-dim) 5px 10px
+        );
+      transition: width .4s ease;
+    }
+    .chip-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin: 16px 0 22px;
+    }
+    .chip {
+      font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 7px 10px; border: 1px solid var(--line);
+      background: var(--panel2); color: var(--muted);
+    }
+    .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+    .chip.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+
+    .mascot-wrap {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      max-width: 380px;
+      margin-left: auto;
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      display: grid; place-items: center;
+      overflow: hidden;
+    }
+    .mascot-wrap::before, .mascot-wrap::after {
+      content: ""; position: absolute; width: 18px; height: 18px;
+      border-color: var(--accent); border-style: solid;
+    }
+    .mascot-wrap::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .mascot-wrap::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+    .mascot-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(61,220,151,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(61,220,151,0.06) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .mascot-svg { position: relative; z-index: 1; width: 72%; height: auto; }
+
+    /* —— sections —— */
+    section { margin-bottom: 72px; scroll-margin-top: calc(var(--nav-h) + 20px); }
+    .sec-head {
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      margin-bottom: 22px;
+    }
+    .mint-grid {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    .mint-blurb h2 { margin-bottom: 14px; }
+    .mint-blurb p {
+      color: var(--muted); font-size: 0.82rem; line-height: 1.7;
+      max-width: 36ch; margin-bottom: 18px;
+    }
+    .steps {
+      list-style: none; font-size: 0.78rem; color: var(--muted);
+    }
+    .steps li {
+      display: flex; gap: 10px; align-items: baseline;
+      padding: 8px 0; border-bottom: 1px solid var(--line);
+    }
+    .steps li:last-child { border-bottom: 0; }
+    .steps b { color: var(--accent); font-weight: 600; min-width: 1.6em; }
+
+    .field-label {
+      display: block; font-size: 0.68rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted); margin: 14px 0 6px;
+    }
+    .stepper {
+      display: grid; grid-template-columns: 48px 1fr 48px;
+      border: 1px solid var(--line); background: #0e141c;
+    }
+    .stepper button {
+      border: 0; background: transparent; color: var(--text);
+      font-size: 1.2rem; cursor: pointer; font-family: inherit;
+    }
+    .stepper button:hover { color: var(--accent); background: #121820; }
+    .stepper input {
+      border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+      background: transparent; color: var(--text);
+      text-align: center; font-family: inherit; font-size: 1.05rem;
+      font-variant-numeric: tabular-nums; outline: none; padding: 12px;
+      -moz-appearance: textfield;
+    }
+    .stepper input::-webkit-outer-spin-button,
+    .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .price-line {
+      margin-top: 12px; font-size: 1.05rem; font-weight: 700; color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+    .price-sub { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+    .id-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    input.mono-in {
+      width: 100%; padding: 12px 12px;
+      border: 1px solid var(--line); background: #0e141c; color: var(--text);
+      font-family: "JetBrains Mono", monospace; font-size: 0.9rem; outline: none;
+    }
+    input.mono-in:focus { border-color: var(--accent2); }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .status {
+      margin-top: 14px; min-height: 1.3em; font-size: 0.78rem;
+      color: var(--muted); word-break: break-all; white-space: pre-wrap;
+    }
+    .status.ok { color: var(--accent); }
+    .status.bad { color: var(--danger); }
+    .invited {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 12px; padding: 6px 10px;
+      font-size: 0.68rem; color: var(--muted);
+      border: 1px solid var(--line); background: #0e141c;
+    }
+    .invited .x { cursor: pointer; color: var(--muted); }
+    .invited .x:hover { color: var(--danger); }
+
+    /* —— pool —— */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px; background: var(--line);
+      border: 1px solid var(--line);
+      margin-top: 18px;
+    }
+    .stat {
+      background: var(--panel2); padding: 14px 14px 16px;
+    }
+    .stat .k {
+      font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .stat .v {
+      font-size: 0.88rem; color: var(--text); line-height: 1.4;
+    }
+    .pool-top {
+      display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: end;
+      margin-bottom: 8px;
+    }
+    .pool-links { margin-top: 16px; font-size: 0.72rem; color: var(--muted); }
+    .pool-links a { margin-right: 14px; }
+
+    /* —— faq —— */
+    .faq details {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 0;
+    }
+    .faq summary {
+      list-style: none; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      font-size: 0.92rem; color: var(--text);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 600;
+    }
+    .faq details[open] summary::after { content: "−"; }
+    .faq .ans {
+      margin-top: 10px; color: var(--muted); font-size: 0.82rem; line-height: 1.65;
+      max-width: 68ch;
+    }
+
+    /* —— footer —— */
+    footer.site {
+      border-top: 1px solid var(--line);
+      padding-top: 22px;
+      display: flex; flex-wrap: wrap; gap: 12px 24px;
+      justify-content: space-between;
+      font-size: 0.68rem; color: var(--muted);
+    }
+    footer.site .links { display: flex; flex-wrap: wrap; gap: 14px; }
+
+    @media (max-width: 860px) {
+      .hero, .mint-grid { grid-template-columns: 1fr; }
+      .mascot-wrap { margin: 0 auto; max-width: 280px; }
+      .nav-links { display: none; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .id-grid, .btn-row { grid-template-columns: 1fr; }
+      .shell { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top">
+      <span class="brand-mark">X</span>
+      <span class="brand-name">XAGENT</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#mint">MINT</a>
+      <a href="#pool">POOL</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-right">
+      <span class="nav-pill" id="netPill">未连接</span>
+      <button class="btn" id="connectBtn" type="button">CONNECT WALLET</button>
+    </div>
+  </header>
+
+  <main class="shell" id="top">
+    <!-- HERO -->
+    <section class="hero" aria-label="Hero">
+      <div>
+        <div class="hero-kicker">BSC · AGENT / ID SALE</div>
+        <h1 class="display">MINT<br/>XAGENT</h1>
+        <p class="hero-blurb">
+          付费铸造 Agent 份额：1 USDT / 份 · 每钱包最多 10 份 · 铸满 10,000 份开 Pancake 池。
+          1 份 = 100 XAGENT。合约开源验证，LP 烧锁，无任意提款。
+        </p>
+
+        <div class="supply-big">
+          <span id="soldNum">—</span><span class="slash">/</span><span>100000</span>
+        </div>
+        <div class="supply-meta">
+          <span id="soldPct">0.0%</span>
+          <span id="soldLeft">100000 left</span>
+        </div>
+        <div class="progress" aria-hidden="true"><i id="soldBar"></i></div>
+
+        <div class="chip-row">
+          <span class="chip warn">OPEN AT 10,000</span>
+          <span class="chip ok">1 USDT / SHARE · 100 XAGENT</span>
+          <span class="chip" id="openedChip">POOL: —</span>
+        </div>
+
+        <a class="btn" href="#mint">GO MINT →</a>
+      </div>
+
+      <div class="mascot-wrap" aria-hidden="true">
+        <div class="mascot-grid"></div>
+        <svg class="mascot-svg" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- geometric agent / robot mark -->
+          <rect x="48" y="70" width="144" height="110" stroke="#3ddc97" stroke-width="3"/>
+          <rect x="70" y="92" width="40" height="28" fill="#141a22" stroke="#5b8cff" stroke-width="2"/>
+          <rect x="130" y="92" width="40" height="28" fill="#141a22" stroke="#5b8cff" stroke-width="2"/>
+          <rect x="82" y="100" width="16" height="12" fill="#3ddc97"/>
+          <rect x="142" y="100" width="16" height="12" fill="#3ddc97"/>
+          <rect x="96" y="140" width="48" height="10" fill="#243041" stroke="#93a4b8" stroke-width="1"/>
+          <path d="M120 40 V70" stroke="#3ddc97" stroke-width="3"/>
+          <rect x="112" y="28" width="16" height="16" fill="#3ddc97"/>
+          <path d="M48 120 H28 V160 H48" stroke="#5b8cff" stroke-width="3"/>
+          <path d="M192 120 H212 V160 H192" stroke="#5b8cff" stroke-width="3"/>
+          <rect x="88" y="180" width="20" height="28" stroke="#93a4b8" stroke-width="2"/>
+          <rect x="132" y="180" width="20" height="28" stroke="#93a4b8" stroke-width="2"/>
+          <text x="120" y="168" text-anchor="middle" fill="#93a4b8" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2">AGENT</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- MINT -->
+    <section id="mint">
+      <div class="mint-grid">
+        <div class="mint-blurb">
+          <h2 class="display sec-head">MINT</h2>
+          <p>CONNECT · APPROVE USDT · MINT。限额按钱包计，Agent ID / 推荐人仅作链上事件索引。</p>
+          <ol class="steps">
+            <li><b>01</b> 连接钱包并切到 BSC</li>
+            <li><b>02</b> 授权对应份额的 USDT</li>
+            <li><b>03</b> 铸造，XAGENT 即时到账</li>
+            <li><b>04</b> 售出 ≥ 10,000 后任意人可开池</li>
+          </ol>
+          <div style="margin-top:18px;font-size:0.72rem;color:var(--muted);">
+            我已铸造 <span id="myMinted" style="color:var(--text)">—</span>
+            · USDT <span id="usdtBal" style="color:var(--text)">—</span>
+          </div>
+        </div>
+
+        <div class="bracket">
+          <span class="c-tr"></span><span class="c-bl"></span>
+          <label class="field-label" for="shares">QUANTITY</label>
+          <div class="stepper">
+            <button type="button" id="qtyMinus" aria-label="减少">−</button>
+            <input id="shares" type="number" min="1" max="10" value="1" />
+            <button type="button" id="qtyPlus" aria-label="增加">+</button>
+          </div>
+          <div class="price-line" id="priceLine">1 USDT</div>
+          <div class="price-sub" id="priceSub">→ 100 XAGENT · 每钱包最多 10 份</div>
+
+          <div class="id-grid">
+            <div>
+              <label class="field-label" for="agentId">AGENT ID</label>
+              <input class="mono-in" id="agentId" type="number" min="0" value="0" />
+            </div>
+            <div>
+              <label class="field-label" for="referrerId">REFERRER ID</label>
+              <input class="mono-in" id="referrerId" type="number" min="0" value="0" />
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn blue" id="approveBtn" type="button" disabled>APPROVE USDT</button>
+            <button class="btn" id="mintBtn" type="button" disabled>MINT</button>
+          </div>
+          <div class="status" id="status"></div>
+          <div class="invited" id="invitedChip" hidden>
+            <span id="invitedTxt">Invited</span>
+            <span class="x" id="invitedClose" title="清除">×</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- POOL -->
+    <section id="pool">
+      <div class="bracket">
+        <span class="c-tr"></span><span class="c-bl"></span>
+        <div class="pool-top">
+          <h2 class="display sec-head" style="margin:0">POOL &amp; SUPPLY</h2>
+          <div class="chip ok" id="poolSoldChip">SOLD —</div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat"><div class="k">Price</div><div class="v">1 USDT / share</div></div>
+          <div class="stat"><div class="k">Per wallet</div><div class="v">max 10 shares</div></div>
+          <div class="stat"><div class="k">Open pool</div><div class="v">sold ≥ 10,000</div></div>
+          <div class="stat"><div class="k">Total shares</div><div class="v">100,000</div></div>
+          <div class="stat"><div class="k">1 share</div><div class="v">100 XAGENT</div></div>
+          <div class="stat"><div class="k">Token supply</div><div class="v">10,000,000 XAGENT</div></div>
+          <div class="stat"><div class="k">LP / Treasury</div><div class="v">70% LP · 30% team</div></div>
+          <div class="stat"><div class="k">Leftover</div><div class="v">burn unused tokens</div></div>
+        </div>
+        <div class="pool-links">
+          Sourcify:
+          <a target="_blank" rel="noopener" href="https://repo.sourcify.dev/56/0x9388f7b45200D889842d18e150dcafFf0636ad25">Token</a>
+          <a target="_blank" rel="noopener" href="https://repo.sourcify.dev/56/0x6FFac8f4346d87e6237e54f87e6Da6Ce98190696">Sale</a>
+          · LP 烧至 0xdead · 无 rescue / 可改价
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="faq">
+      <h2 class="display sec-head">FAQ</h2>
+      <details open>
+        <summary>怎么铸造？</summary>
+        <div class="ans">点右上角 CONNECT WALLET，切到 BSC。在 MINT 区选份数（1–10），先 APPROVE USDT，再点 MINT。Agent ID / 推荐人可填 0。</div>
+      </details>
+      <details>
+        <summary>钱去哪了？什么时候开盘？</summary>
+        <div class="ans">USDT 先进入 Sale 合约。售出达到 10,000 份后，任何人可调用 openPool：约 70% USDT + 对应 XAGENT 加 Pancake V2 流动性并将 LP 烧毁，30% USDT 转入团队金库，剩余未售代币烧毁。</div>
+      </details>
+      <details>
+        <summary>合约安全吗？</summary>
+        <div class="ans">Token / Sale 已在 Sourcify 完全匹配开源。无任意提款、无增发、无黑名单卡卖出；价格与开池条件写死在合约里。</div>
+      </details>
+      <details>
+        <summary>每份能拿到多少币？</summary>
+        <div class="ans">1 份 = 100 XAGENT，铸造后立即转入你的钱包。总量 1000 万枚，全部由 Sale 分配（无额外团队预留）。</div>
+      </details>
+    </section>
+
+    <footer class="site">
+      <div>XAGENT · BSC · 1 USDT / share</div>
+      <div class="links mono">
+        <a id="tokA" target="_blank" rel="noopener">Token</a>
+        <a id="saleA" target="_blank" rel="noopener">Sale</a>
+        <a id="usdtA" target="_blank" rel="noopener">USDT</a>
+        <a target="_blank" rel="noopener" href="https://repo.sourcify.dev/56/0x9388f7b45200D889842d18e150dcafFf0636ad25">Sourcify Token</a>
+        <a target="_blank" rel="noopener" href="https://repo.sourcify.dev/56/0x6FFac8f4346d87e6237e54f87e6Da6Ce98190696">Sourcify Sale</a>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const BSC = 56n;
+    const TOKEN = "0x9388f7b45200D889842d18e150dcafFf0636ad25";
+    const SALE = "0x6FFac8f4346d87e6237e54f87e6Da6Ce98190696";
+    const USDT = "0x55d398326f99059fF775485246999027B3197955";
+    const EX = (a) => `https://bscscan.com/address/${a}`;
+    const MAX_SUPPLY = 100000n;
+
+    const SALE_ABI = [
+      "function sold() view returns (uint256)",
+      "function opened() view returns (bool)",
+      "function minted(address) view returns (uint256)",
+      "function MAX_SUPPLY() view returns (uint256)",
+      "function MAX_PER_WALLET() view returns (uint256)",
+      "function OPEN_AT_SOLD() view returns (uint256)",
+      "function PRICE() view returns (uint256)",
+      "function mint(uint256 shares, uint256 agentId, uint256 referrerId)",
+      "function token() view returns (address)",
+    ];
+    const ERC20_ABI = [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function approve(address spender, uint256 amount) returns (bool)",
+      "function balanceOf(address) view returns (uint256)",
+      "function decimals() view returns (uint8)",
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("status");
+    function setStatus(msg, cls) {
+      statusEl.className = "status " + (cls || "");
+      statusEl.textContent = msg || "";
+    }
+
+    $("tokA").textContent = "BscScan Token";
+    $("tokA").href = EX(TOKEN);
+    $("saleA").textContent = "BscScan Sale";
+    $("saleA").href = EX(SALE);
+    $("usdtA").textContent = "USDT";
+    $("usdtA").href = EX(USDT);
+
+    let provider, signer, account, sale, usdt;
+
+    function updatePriceLine() {
+      let n = parseInt($("shares").value || "1", 10);
+      if (!Number.isFinite(n) || n < 1) n = 1;
+      if (n > 10) n = 10;
+      $("shares").value = String(n);
+      $("priceLine").textContent = `${n} USDT`;
+      $("priceSub").textContent = `→ ${n * 100} XAGENT · 每钱包最多 10 份`;
+    }
+
+    function setSoldUI(sold) {
+      const s = BigInt(sold.toString());
+      const pct = Math.min(100, Number(s) / 1000);
+      $("soldNum").textContent = s.toString();
+      $("soldBar").style.width = `${pct}%`;
+      $("soldPct").textContent = `${pct.toFixed(1)}%`;
+      $("soldLeft").textContent = `${(MAX_SUPPLY - s).toString()} left`;
+      $("poolSoldChip").textContent = `SOLD ${s.toString()}`;
+    }
+
+    async function ensureBsc() {
+      const net = await provider.getNetwork();
+      if (net.chainId === BSC) return;
+      try {
+        await provider.send("wallet_switchEthereumChain", [{ chainId: "0x38" }]);
+      } catch (e) {
+        if (e.code === 4902 || (e.data && e.data.originalError && e.data.originalError.code === 4902)) {
+          await provider.send("wallet_addEthereumChain", [{
+            chainId: "0x38",
+            chainName: "BNB Smart Chain",
+            nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+            rpcUrls: ["https://bsc-dataseed.binance.org/"],
+            blockExplorerUrls: ["https://bscscan.com"],
+          }]);
+        } else throw e;
+      }
+    }
+
+    async function refresh() {
+      if (!sale) {
+        const ro = new ethers.JsonRpcProvider("https://bsc-dataseed.binance.org/");
+        const s = new ethers.Contract(SALE, SALE_ABI, ro);
+        const sold = await s.sold();
+        const opened = await s.opened();
+        setSoldUI(sold);
+        $("openedChip").textContent = opened ? "POOL: OPENED" : "POOL: CLOSED";
+        $("myMinted").textContent = "—";
+        $("usdtBal").textContent = "—";
+        return;
+      }
+      const [sold, opened, my, bal, allow] = await Promise.all([
+        sale.sold(),
+        sale.opened(),
+        sale.minted(account),
+        usdt.balanceOf(account),
+        usdt.allowance(account, SALE),
+      ]);
+      setSoldUI(sold);
+      $("openedChip").textContent = opened ? "POOL: OPENED" : "POOL: CLOSED";
+      $("myMinted").textContent = `${my.toString()} / 10`;
+      $("usdtBal").textContent = ethers.formatUnits(bal, 18);
+      $("netPill").textContent = account.slice(0, 6) + "…" + account.slice(-4);
+      $("netPill").classList.add("ok");
+      const left = 10n - my;
+      $("approveBtn").disabled = opened || left <= 0n;
+      $("mintBtn").disabled = opened || left <= 0n;
+      window.__allow = allow;
+      window.__left = left;
+      window.__opened = opened;
+    }
+
+    async function connect() {
+      if (!window.ethereum) {
+        setStatus("未检测到钱包。请安装 MetaMask 等注入钱包。", "bad");
+        return;
+      }
+      provider = new ethers.BrowserProvider(window.ethereum);
+      await ensureBsc();
+      await provider.send("eth_requestAccounts", []);
+      signer = await provider.getSigner();
+      account = await signer.getAddress();
+      sale = new ethers.Contract(SALE, SALE_ABI, signer);
+      usdt = new ethers.Contract(USDT, ERC20_ABI, signer);
+      $("connectBtn").textContent = "CONNECTED";
+      setStatus("已连接 BSC。", "ok");
+      await refresh();
+    }
+
+    $("connectBtn").onclick = () => connect().catch((e) => setStatus(e.shortMessage || e.message || String(e), "bad"));
+
+    $("qtyMinus").onclick = () => {
+      $("shares").value = String(Math.max(1, parseInt($("shares").value || "1", 10) - 1));
+      updatePriceLine();
+    };
+    $("qtyPlus").onclick = () => {
+      $("shares").value = String(Math.min(10, parseInt($("shares").value || "1", 10) + 1));
+      updatePriceLine();
+    };
+    $("shares").addEventListener("input", updatePriceLine);
+    updatePriceLine();
+
+    // optional invite chip from ?ref=
+    (function inviteFromQuery() {
+      const q = new URLSearchParams(location.search);
+      const ref = q.get("ref") || q.get("referrer") || "";
+      if (/^\d+$/.test(ref) && ref !== "0") {
+        $("referrerId").value = ref;
+        $("invitedTxt").textContent = "Invited by #" + ref;
+        $("invitedChip").hidden = false;
+      }
+    })();
+    $("invitedClose").onclick = () => {
+      $("invitedChip").hidden = true;
+      $("referrerId").value = "0";
+    };
+
+    $("approveBtn").onclick = async () => {
+      try {
+        const shares = BigInt($("shares").value || "0");
+        if (shares < 1n || shares > 10n) throw new Error("份数需在 1–10");
+        if (shares > window.__left) throw new Error(`剩余额度仅 ${window.__left}`);
+        const amount = shares * 10n ** 18n;
+        setStatus("请求授权 USDT…");
+        const tx = await usdt.approve(SALE, amount);
+        setStatus("授权已提交: " + tx.hash);
+        await tx.wait();
+        setStatus("授权成功。可以铸造了。", "ok");
+        await refresh();
+      } catch (e) {
+        setStatus(e.shortMessage || e.message || String(e), "bad");
+      }
+    };
+
+    $("mintBtn").onclick = async () => {
+      try {
+        const shares = BigInt($("shares").value || "0");
+        const agentId = BigInt($("agentId").value || "0");
+        const referrerId = BigInt($("referrerId").value || "0");
+        if (shares < 1n || shares > 10n) throw new Error("份数需在 1–10");
+        if (shares > window.__left) throw new Error(`剩余额度仅 ${window.__left}`);
+        const need = shares * 10n ** 18n;
+        if ((window.__allow || 0n) < need) {
+          setStatus("USDT 授权不足，请先点 APPROVE USDT。", "bad");
+          return;
+        }
+        setStatus("请求铸造…");
+        const tx = await sale.mint(shares, agentId, referrerId);
+        setStatus("铸造已提交: " + tx.hash);
+        await tx.wait();
+        setStatus(`铸造成功：${shares} 份 → ${shares * 100n} XAGENT`, "ok");
+        await refresh();
+      } catch (e) {
+        setStatus(e.shortMessage || e.message || String(e), "bad");
+      }
+    };
+
+    refresh().catch(() => {});
+    if (window.ethereum) {
+      window.ethereum.on?.("accountsChanged", () => location.reload());
+      window.ethereum.on?.("chainChanged", () => location.reload());
+    }
+  </script>
+</body>
+</html>
