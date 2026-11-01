@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>XAGENT — MINT</title>
+  <link rel="icon" href="favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="logo.png" />
   <script src="./ethers.umd.min.js"></script>
   <style>
     :root {
@@ -247,7 +249,12 @@
         linear-gradient(90deg, rgba(61,220,151,0.06) 1px, transparent 1px);
       background-size: 24px 24px;
     }
-    .mascot-svg { position: relative; z-index: 1; width: 72%; height: auto; }
+    .mascot-img {
+      position: relative; z-index: 1;
+      width: 72%; height: auto;
+      border-radius: 18%;
+      display: block;
+    }
 
     /* —— sections —— */
     section { margin-bottom: 72px; scroll-margin-top: calc(var(--nav-h) + 20px); }
@@ -444,22 +451,7 @@
 
       <div class="mascot-wrap" aria-hidden="true">
         <div class="mascot-grid"></div>
-        <svg class="mascot-svg" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- geometric agent / robot mark -->
-          <rect x="48" y="70" width="144" height="110" stroke="#3ddc97" stroke-width="3"/>
-          <rect x="70" y="92" width="40" height="28" fill="#141a22" stroke="#5b8cff" stroke-width="2"/>
-          <rect x="130" y="92" width="40" height="28" fill="#141a22" stroke="#5b8cff" stroke-width="2"/>
-          <rect x="82" y="100" width="16" height="12" fill="#3ddc97"/>
-          <rect x="142" y="100" width="16" height="12" fill="#3ddc97"/>
-          <rect x="96" y="140" width="48" height="10" fill="#243041" stroke="#93a4b8" stroke-width="1"/>
-          <path d="M120 40 V70" stroke="#3ddc97" stroke-width="3"/>
-          <rect x="112" y="28" width="16" height="16" fill="#3ddc97"/>
-          <path d="M48 120 H28 V160 H48" stroke="#5b8cff" stroke-width="3"/>
-          <path d="M192 120 H212 V160 H192" stroke="#5b8cff" stroke-width="3"/>
-          <rect x="88" y="180" width="20" height="28" stroke="#93a4b8" stroke-width="2"/>
-          <rect x="132" y="180" width="20" height="28" stroke="#93a4b8" stroke-width="2"/>
-          <text x="120" y="168" text-anchor="middle" fill="#93a4b8" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="2">AGENT</text>
-        </svg>
+        <img class="mascot-img" src="logo.png" alt="" width="379" height="379" />
       </div>
     </section>
 
